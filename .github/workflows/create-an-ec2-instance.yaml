@@ -60,10 +60,10 @@ jobs:
           TF_VAR_ec2_instance_type: "${{ github.event.inputs.ec2_instance_type}}"
         run: |
           cd Terraform-Repo/module
-          terraform init -backend-config="bucket=test-port-788489449561-tf-state" -backend-config="key=test/us-east-1/stack/terraform.tfstate" -backend-config="region=us-east-1"  -backend-config="dynamodb_table=test-port-788489449561-tf-lock"  -backend-config="encrypt=true" -force-copy -backend=true
+          terraform init
           terraform validate
-          terraform plan -target="module.ec2" -var-file="terraform.tfvars"
-          terraform apply -target="module.ec2" -var-file="terraform.tfvars" -auto-approve
+          terraform plan 
+          terraform apply -auto-approve
 
       - name: Set Outputs
         id: set_outputs
@@ -72,6 +72,7 @@ jobs:
           echo "instance_id=$(terraform output -raw instance_id)" >> $GITHUB_ENV
           echo "instance_state=$(terraform output -raw instance_state)" >> $GITHUB_ENV
           echo "instance_type=$(terraform output -raw instance_type)" >> $GITHUB_ENV
+          echo "availability_zone=$(terraform output -raw availability_zone)" >> $GITHUB_ENV
           echo "public_dns=$(terraform output -raw public_dns)" >> $GITHUB_ENV
           echo "public_ip=$(terraform output -raw public_ip)" >> $GITHUB_ENV
           echo "private_dns=$(terraform output -raw private_dns)" >> $GITHUB_ENV
@@ -87,7 +88,7 @@ jobs:
           logMessage: |
               EC2 Instance created successfully ✅
 
-     - name: Report Created Instance to Port
+      - name: Report Created Instance to Port
         uses: port-labs/port-github-action@v1
         with:
           clientId: ${{ secrets.PORT_CLIENT_ID }}
@@ -107,6 +108,7 @@ jobs:
             {
               "instance_state": "${{ env.instance_state }}",
               "instance_type": "${{ env.instance_type }}",
+              "availability_zone": "${{ env.availability_zone }}",
               "public_dns": "${{ env.public_dns }}",
               "public_ip": "${{ env.public_ip }}",
               "private_dns": "${{ env.private_dns }}",
