@@ -59,16 +59,16 @@ jobs:
           TF_VAR_aws_region: "${{ secrets.TF_USER_AWS_REGION }}"
           TF_VAR_ec2_instance_type: "${{ github.event.inputs.ec2_instance_type}}"
         run: |
-          cd <TERRAFORM-TEMPLATE-DIR>
-          terraform init
+          cd Terraform-Repo/module
+          terraform init -backend-config="bucket=test-port-788489449561-tf-state" -backend-config="key=test/us-east-1/stack/terraform.tfstate" -backend-config="region=us-east-1"  -backend-config="dynamodb_table=test-port-788489449561-tf-lock"  -backend-config="encrypt=true" -force-copy -backend=true
           terraform validate
-          terraform plan 
-          terraform apply -auto-approve
+          terraform plan -target="module.ec2" -var-file="terraform.tfvars"
+          terraform apply -target="module.ec2" -var-file="terraform.tfvars" -auto-approve
 
       - name: Set Outputs
         id: set_outputs
         run: |
-          cd <TERRAFORM-TEMPLATE-DIR>
+          cd Terraform-Repo/module
           echo "instance_id=$(terraform output -raw instance_id)" >> $GITHUB_ENV
           echo "instance_state=$(terraform output -raw instance_state)" >> $GITHUB_ENV
           echo "instance_type=$(terraform output -raw instance_type)" >> $GITHUB_ENV
