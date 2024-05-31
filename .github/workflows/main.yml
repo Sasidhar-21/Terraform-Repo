@@ -40,6 +40,7 @@ jobs:
           clientId: ${{ secrets.PORT_CLIENT_ID }}
           clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
           operation: PATCH_RUN
+          runId: ${{ fromJson(inputs.port_context).run_id }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
