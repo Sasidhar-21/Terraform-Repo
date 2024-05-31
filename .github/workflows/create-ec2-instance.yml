@@ -1,4 +1,4 @@
-name: Provision VPC and EC2 Instance
+name: Provision AN EC2 Instance
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
       ec2_instance_type:
         description: EC2 instance type
         required: false
-        default: "t2.micro"
+        default: "t3.micro"
         type: string
       pem_key_name:
         description: EC2 pem key
@@ -20,27 +20,24 @@ on:
       port_context:
         required: true
         description: includes blueprint, run ID, and entity identifier from Port.
-
 jobs:
-  provision-resources:
+  provision-ec2:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
-          terraform_version: 1.1.2
+          node-version: '14'
 
-      - name: Log starting of VPC creation 
+      - name: Log starting of EC2 Instance creation 
         uses: port-labs/port-github-action@v1
         with:
           clientId: ${{ secrets.PORT_CLIENT_ID }}
           clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
           operation: PATCH_RUN
-          runId: ${{ fromJson(inputs.port_context).run_id }}
+          runId: ${{ fromJson(inputs.port_context).rund_id }}
+          logMessage: |
+              About to create ec2 instance ${{ github.event.inputs.ec2_name }} .. ⛴️
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -49,96 +46,84 @@ jobs:
           aws-secret-access-key: '${{ secrets.TF_USER_AWS_SECRET }}'
           aws-region: '${{ secrets.TF_USER_AWS_REGION }}'
 
-      - name: Initialize Terraform for VPC
-        run: |
-          cd Terraform-Repo/module
-          terraform init
-          terraform validate
-          terraform plan -target="module.vpc" --var-file="terraform.tfvars"
-          terraform apply -target="module.vpc" --var-file="terraform.tfvars" --auto-approve
-
-      - name: Plan Terraform for EC2 Instance
-        run: |
-          cd Terraform-Repo/module
-          terraform plan 
-          terraform apply -auto-approve
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+          
+      - name: Terraform Apply
+        id:   apply
         env:
           TF_VAR_ec2_name:  "${{ github.event.inputs.ec2_name }}"
           TF_VAR_pem_key_name: "${{ github.event.inputs.pem_key_name}}"
           TF_VAR_aws_region: "${{ secrets.TF_USER_AWS_REGION }}"
           TF_VAR_ec2_instance_type: "${{ github.event.inputs.ec2_instance_type}}"
-
-      - name: Set Outputs for EC2 Instance
-        id: set_ec2_outputs
         run: |
-          cd ./path/to/ec2/terraform
+          cd <TERRAFORM-TEMPLATE-DIR>
+          terraform init
+          terraform validate
+          terraform plan 
+          terraform apply -auto-approve
+
+      - name: Set Outputs
+        id: set_outputs
+        run: |
+          cd <TERRAFORM-TEMPLATE-DIR>
           echo "instance_id=$(terraform output -raw instance_id)" >> $GITHUB_ENV
           echo "instance_state=$(terraform output -raw instance_state)" >> $GITHUB_ENV
           echo "instance_type=$(terraform output -raw instance_type)" >> $GITHUB_ENV
-          # Add more outputs as needed
+          echo "public_dns=$(terraform output -raw public_dns)" >> $GITHUB_ENV
+          echo "public_ip=$(terraform output -raw public_ip)" >> $GITHUB_ENV
+          echo "private_dns=$(terraform output -raw private_dns)" >> $GITHUB_ENV
+          echo "private_ip=$(terraform output -raw private_ip)" >> $GITHUB_ENV
 
-      - name: Log After VPC and EC2 Instance creation
+      - name: Create a log message
         uses: port-labs/port-github-action@v1
         with:
           clientId: ${{ secrets.PORT_CLIENT_ID }}
           clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
           operation: PATCH_RUN
-          runId: ${{ fromJson(inputs.port_context).run_id }}
+          runId: ${{ fromJson(inputs.port_context).rund_id }}
           logMessage: |
-              VPC and EC2 Instance created successfully ✅
+              EC2 Instance created successfully ✅
 
-      - name: Report Created Resources to Port
+     - name: Report Created Instance to Port
         uses: port-labs/port-github-action@v1
         with:
           clientId: ${{ secrets.PORT_CLIENT_ID }}
           clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
           baseUrl: https://api.getport.io
           operation: PATCH_RUN
-          runId: ${{ fromJson(inputs.port_context).run_id }}
-          logMessage: "Upserting created VPC and EC2 Instance to Port ... "
-
-      - name: UPSERT VPC Entity
-        uses: port-labs/port-github-action@v1
-        with:
-          identifier: "${{ steps.set_vpc_outputs.outputs.vpc_id }}"
-          title: "My VPC"
-          blueprint: ${{ fromJson(inputs.port_context).blueprint }}
-          properties: |-
-            {
-              "vpc_id": "${{ steps.set_vpc_outputs.outputs.vpc_id }}",
-              "subnet_id": "${{ steps.set_vpc_outputs.outputs.subnet_id }}",
-              # Add more properties as needed
-            }
-          clientId: ${{ secrets.PORT_CLIENT_ID }}
-          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
-          baseUrl: https://api.getport.io
-          operation: UPSERT
-          runId: ${{ fromJson(inputs.port_context).run_id }}
-
+          runId: ${{ fromJson(inputs.port_context).rund_id }}
+          logMessage: "Upserting created EC2 Instance to Port ... "
+          
       - name: UPSERT EC2 Instance Entity
         uses: port-labs/port-github-action@v1
         with:
-          identifier: "${{ steps.set_ec2_outputs.outputs.instance_id }}"
+          identifier: "${{ steps.display_outputs.outputs.instance_id }}"
           title: "${{ inputs.ec2_name }}"
           blueprint: ${{ fromJson(inputs.port_context).blueprint }}
           properties: |-
             {
-              "instance_state": "${{ steps.set_ec2_outputs.outputs.instance_state }}",
-              "instance_type": "${{ steps.set_ec2_outputs.outputs.instance_type }}",
-              # Add more properties as needed
+              "instance_state": "${{ env.instance_state }}",
+              "instance_type": "${{ env.instance_type }}",
+              "public_dns": "${{ env.public_dns }}",
+              "public_ip": "${{ env.public_ip }}",
+              "private_dns": "${{ env.private_dns }}",
+              "private_ip": "${{ env.private_ip }}",
             }
           clientId: ${{ secrets.PORT_CLIENT_ID }}
           clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
           baseUrl: https://api.getport.io
           operation: UPSERT
-          runId: ${{ fromJson(inputs.port_context).run_id }}
+          runId: ${{ fromJson(inputs.port_context).rund_id }}
 
-      - name: Log After Upserting Entities
+      - name: Log After Upserting Entity
         uses: port-labs/port-github-action@v1
         with:
           clientId: ${{ secrets.PORT_CLIENT_ID }}
           clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
           baseUrl: https://api.getport.io
           operation: PATCH_RUN
-          runId: ${{ fromJson(inputs.port_context).run_id }}
-          logMessage: "Entities upserting was successful ✅"
+          runId: ${{ fromJson(inputs.port_context).rund_id }}
+          logMessage: "Entity upserting was successful ✅"
