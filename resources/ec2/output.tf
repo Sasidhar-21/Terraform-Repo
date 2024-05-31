@@ -20,3 +20,13 @@ output "public_ip" {
   description = "The public IP address assigned to the EC2 instance."
   value       = aws_instance.Test-ec2.public_ip
 }
+
+output "private_dns" {
+  description = "The private DNS name assigned to the EC2 instance within its VPC."
+  value       = aws_instance.Test-ec2.private_dns
+}
+
+output "private_ip" {
+  description = "The private IP address assigned to the EC2 instance within its VPC."
+  value       = aws_instance.Test-ec2.private_ip
+}

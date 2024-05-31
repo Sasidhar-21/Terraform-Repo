@@ -29,3 +29,13 @@ output "public_ip" {
   value       = module.ec2.public_ip
 }
 
+output "private_dns" {
+  description = "The private DNS name assigned to the EC2 instance within its VPC."
+  value       = module.ec2.private_dns
+}
+
+output "private_ip" {
+  description = "The private IP address assigned to the EC2 instance within its VPC."
+  value       = module.ec2.private_ip
+}
+
